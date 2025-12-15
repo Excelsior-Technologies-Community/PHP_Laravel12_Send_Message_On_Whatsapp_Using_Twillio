@@ -1,59 +1,311 @@
-<p align="center"><a href="https://laravel.com" target="_blank"><img src="https://raw.githubusercontent.com/laravel/art/master/logo-lockup/5%20SVG/2%20CMYK/1%20Full%20Color/laravel-logolockup-cmyk-red.svg" width="400" alt="Laravel Logo"></a></p>
+# PHP_Laravel12_Send_Message_On_Whatsapp_Using_Twillio
 
-<p align="center">
-<a href="https://github.com/laravel/framework/actions"><img src="https://github.com/laravel/framework/workflows/tests/badge.svg" alt="Build Status"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/dt/laravel/framework" alt="Total Downloads"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/v/laravel/framework" alt="Latest Stable Version"></a>
-<a href="https://packagist.org/packages/laravel/framework"><img src="https://img.shields.io/packagist/l/laravel/framework" alt="License"></a>
-</p>
 
-## About Laravel
 
-Laravel is a web application framework with expressive, elegant syntax. We believe development must be an enjoyable and creative experience to be truly fulfilling. Laravel takes the pain out of development by easing common tasks used in many web projects, such as:
+---
 
-- [Simple, fast routing engine](https://laravel.com/docs/routing).
-- [Powerful dependency injection container](https://laravel.com/docs/container).
-- Multiple back-ends for [session](https://laravel.com/docs/session) and [cache](https://laravel.com/docs/cache) storage.
-- Expressive, intuitive [database ORM](https://laravel.com/docs/eloquent).
-- Database agnostic [schema migrations](https://laravel.com/docs/migrations).
-- [Robust background job processing](https://laravel.com/docs/queues).
-- [Real-time event broadcasting](https://laravel.com/docs/broadcasting).
+## Step 1: Install Laravel 12
 
-Laravel is accessible, powerful, and provides tools required for large, robust applications.
+This step is optional.  
+If you have not created a Laravel application yet, run the command below:
 
-## Learning Laravel
+```
+composer create-project laravel/laravel example-app
+```
 
-Laravel has the most extensive and thorough [documentation](https://laravel.com/docs) and video tutorial library of all modern web application frameworks, making it a breeze to get started with the framework. You can also check out [Laravel Learn](https://laravel.com/learn), where you will be guided through building a modern Laravel application.
+Explanation:  
+This command creates a fresh Laravel 12 project with default configuration and folder structure.
 
-If you don't feel like reading, [Laracasts](https://laracasts.com) can help. Laracasts contains thousands of video tutorials on a range of topics including Laravel, modern PHP, unit testing, and JavaScript. Boost your skills by digging into our comprehensive video library.
+---
 
-## Laravel Sponsors
+## Step 2: Set Up a Twilio Account
 
-We would like to extend our thanks to the following sponsors for funding Laravel development. If you are interested in becoming a sponsor, please visit the [Laravel Partners program](https://partners.laravel.com).
+1. Create an account on **Twilio**.
+2. Add a WhatsApp-enabled phone number.
+3. Copy the following credentials from Twilio Dashboard:
+   - Account SID
+   - Auth Token
+   - WhatsApp Number
+  
+<img width="1891" height="880" alt="image" src="https://github.com/user-attachments/assets/a49355fb-467d-45fa-94ec-6385cb891051" />
 
-### Premium Partners
 
-- **[Vehikl](https://vehikl.com)**
-- **[Tighten Co.](https://tighten.co)**
-- **[Kirschbaum Development Group](https://kirschbaumdevelopment.com)**
-- **[64 Robots](https://64robots.com)**
-- **[Curotec](https://www.curotec.com/services/technologies/laravel)**
-- **[DevSquad](https://devsquad.com/hire-laravel-developers)**
-- **[Redberry](https://redberry.international/laravel-development)**
-- **[Active Logic](https://activelogic.com)**
+Add them to your `.env` file:
 
-## Contributing
+```
+TWILIO_SID=your_twilio_account_sid
+TWILIO_AUTH_TOKEN=your_twilio_auth_token
+TWILIO_WHATSAPP_NUMBER=your_twilio_whatsapp_number
+```
 
-Thank you for considering contributing to the Laravel framework! The contribution guide can be found in the [Laravel documentation](https://laravel.com/docs/contributions).
+Explanation:  
+These credentials authenticate your Laravel application with Twilio’s WhatsApp service.
 
-## Code of Conduct
+---
 
-In order to ensure that the Laravel community is welcoming to all, please review and abide by the [Code of Conduct](https://laravel.com/docs/contributions#code-of-conduct).
+## Step 3: Install Twilio SDK
 
-## Security Vulnerabilities
+Install the Twilio SDK package using Composer:
 
-If you discover a security vulnerability within Laravel, please send an e-mail to Taylor Otwell via [taylor@laravel.com](mailto:taylor@laravel.com). All security vulnerabilities will be promptly addressed.
+```
+composer require twilio/sdk
+```
 
-## License
+Explanation:  
+This package allows Laravel to communicate with Twilio’s REST API.
 
-The Laravel framework is open-sourced software licensed under the [MIT license](https://opensource.org/licenses/MIT).
+---
+
+## Step 4: Create Routes
+
+File: `routes/web.php`
+
+```php
+<?php
+
+/**
+ * Import necessary Laravel facades and controllers
+ * Illuminate\Support\Facades\Route - Provides access to Laravel's routing system
+ * App\Http\Controllers\WhatsAppController - Imports the WhatsAppController class for handling WhatsApp functionality
+ */
+use Illuminate\Support\Facades\Route;
+use App\Http\Controllers\WhatsAppController;
+
+/**
+ * Default root route - Serves the welcome view when users visit the homepage
+ * This is typically the landing page of your Laravel application
+ */
+Route::get('/', function () {
+    return view('welcome');
+});
+
+/**
+ * WhatsApp Webhook Routes
+ * 
+ * GET /whatsapp - Displays the WhatsApp integration page or form
+ * This route calls the 'index' method in WhatsAppController
+ */
+Route::get('/whatsapp', [WhatsAppController::class, 'index']);
+
+/**
+ * POST /whatsapp - Handles incoming WhatsApp webhook data
+ * Named route 'whatsapp.post' allows easy URL generation
+ */
+Route::post('/whatsapp', [WhatsAppController::class, 'store'])->name('whatsapp.post');
+```
+
+Explanation:  
+These routes display the WhatsApp form and handle message submission.
+
+---
+
+## Step 5: Create Controller
+
+File: `app/Http/Controllers/WhatsAppController.php`
+
+```php
+<?php
+
+namespace App\Http\Controllers;
+
+/**
+ * Import necessary Laravel and Twilio dependencies
+ * Illuminate\Http\Request - Handles incoming HTTP requests and validation
+ * Twilio\Rest\Client - Twilio SDK client for sending WhatsApp messages
+ */
+use Illuminate\Http\Request;
+use Twilio\Rest\Client;
+
+class WhatsAppController extends Controller
+{
+    /**
+     * Display the WhatsApp messaging interface
+     */
+    public function index()
+    {
+        return view('whatsapp');
+    }
+
+    /**
+     * Send WhatsApp message via Twilio API
+     */
+    public function store(Request $request)
+    {
+        /**
+         * Validate incoming request data
+         */
+        $request->validate([
+            'phone' => 'required',
+            'message' => 'required',
+        ]);
+
+        try {
+            /**
+             * Get Twilio credentials from config/services.php
+             */
+            $sid   = config('services.twilio.sid');
+            $token = config('services.twilio.token');
+            $from  = 'whatsapp:' . config('services.twilio.whatsapp_from');
+
+            /**
+             * Format recipient phone number for India
+             */
+            $to = 'whatsapp:+91' . $request->phone; // ONLY ONCE +91
+
+            /**
+             * Initialize Twilio client
+             */
+            $client = new Client($sid, $token);
+
+            /**
+             * Send WhatsApp message
+             */
+            $client->messages->create($to, [
+                'from' => $from,
+                'body' => $request->message,
+            ]);
+
+            return back()->with('success', 'WhatsApp message sent successfully!');
+        } catch (\Exception $e) {
+            return back()->with('error', $e->getMessage());
+        }
+    }
+}
+```
+
+Explanation:  
+Controller validates input, formats WhatsApp numbers, and sends messages using Twilio API.
+
+---
+
+## Step 6: Create Blade File
+
+File: `resources/views/whatsapp.blade.php`
+
+```html
+
+```
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <!-- Page title displayed in browser tab -->
+    <title>Send WhatsApp Message</title>
+    
+    <!-- Bootstrap 5 CSS CDN for responsive styling and components -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/css/bootstrap.min.css" rel="stylesheet">
+</head>
+<body>
+    <!-- Main container with top margin for better spacing -->
+    <div class="container mt-5">
+        <!-- Bootstrap card component for clean form presentation -->
+        <div class="card">
+            <!-- Card header with title -->
+            <div class="card-header">
+                <h4>Send WhatsApp Message using Twilio</h4>
+            </div>
+            
+            <!-- Card body contains the form and flash messages -->
+            <div class="card-body">
+                <!-- Success message display (from controller flash session) -->
+                @if(session('success'))
+                    <div class="alert alert-success alert-dismissible fade show" role="alert">
+                        {{ session('success') }}
+                        <!-- Optional: Close button for alerts -->
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                @endif
+
+                <!-- Error message display (from controller flash session) -->
+                @if(session('error'))
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        {{ session('error') }}
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    </div>
+                @endif
+
+                <!-- Main WhatsApp form - POST to named route 'whatsapp.post' -->
+                <form method="POST" action="{{ route('whatsapp.post') }}">
+                    <!-- Laravel CSRF protection token (security requirement) -->
+                    @csrf
+
+                    <!-- Phone Number Input Field -->
+                    <div class="mb-3">
+                        <label class="form-label">Phone Number</label>
+                        <!-- Indian mobile number format (10 digits only, no +91) -->
+                        <input 
+                            type="text" 
+                            name="phone" 
+                            class="form-control @error('phone') is-invalid @enderror" 
+                            placeholder="8511270630"
+                            value="{{ old('phone') }}"
+                            maxlength="10"
+                        >
+                        <!-- Laravel validation error display -->
+                        @error('phone')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <!-- Message Textarea Field -->
+                    <div class="mb-3">
+                        <label class="form-label">Message</label>
+                        <textarea 
+                            name="message" 
+                            class="form-control @error('message') is-invalid @enderror" 
+                            rows="4"
+                            placeholder="Enter your WhatsApp message here..."
+                        >{{ old('message') }}</textarea>
+                        @error('message')
+                            <div class="invalid-feedback">{{ $message }}</div>
+                        @enderror
+                    </div>
+
+                    <!-- Submit button styled with Bootstrap success color -->
+                    <button type="submit" class="btn btn-success btn-lg">
+                        <i class="fab fa-whatsapp"></i> Send WhatsApp Message
+                    </button>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle (includes Popper for tooltips/dropdowns) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.0.2/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>
+
+
+---
+
+## Step 7: Configure Twilio in services.php
+
+File: `config/services.php`
+
+```php
+'twilio' => [
+    'sid' => env('TWILIO_SID'),
+    'token' => env('TWILIO_AUTH_TOKEN'),
+    'whatsapp_from' => env('TWILIO_WHATSAPP_NUMBER'),
+],
+```
+
+Explanation:  
+Central configuration file for Twilio credentials used throughout the application.
+
+---
+
+## Step 8: Run Laravel Application
+
+```
+php artisan serve
+```
+
+Open browser:
+
+```
+http://localhost:8000/whatsapp
+```
+<img width="1613" height="645" alt="image" src="https://github.com/user-attachments/assets/70226c3d-a220-49a7-a92e-009667ed08ec" />
+<img width="246" height="280" alt="image" src="https://github.com/user-attachments/assets/e9981dda-e461-410d-af13-a4ad4fd97683" />
+
+
