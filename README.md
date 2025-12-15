@@ -306,6 +306,7 @@ Open browser:
 http://localhost:8000/whatsapp
 ```
 <img width="1613" height="645" alt="image" src="https://github.com/user-attachments/assets/70226c3d-a220-49a7-a92e-009667ed08ec" />
-<img width="246" height="280" alt="image" src="https://github.com/user-attachments/assets/e9981dda-e461-410d-af13-a4ad4fd97683" />
+<img width="1025" height="882" alt="image" src="https://github.com/user-attachments/assets/7877fc66-96d0-4052-9bb5-9d4346a87e1a" />
+
 
 
