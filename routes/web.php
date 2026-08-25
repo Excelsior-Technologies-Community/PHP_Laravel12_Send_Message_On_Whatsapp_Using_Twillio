@@ -8,6 +8,7 @@ Route::get('/', function () {
     return view('welcome');
 });
 
+
 /*
 |--------------------------------------------------------------------------
 | WhatsApp
@@ -24,6 +25,7 @@ Route::post('/whatsapp', [
     'store'
 ])->name('whatsapp.post');
 
+
 /*
 |--------------------------------------------------------------------------
 | Message History
@@ -35,6 +37,19 @@ Route::get('/messages', [
     'history'
 ])->name('messages.history');
 
+
+/*
+|--------------------------------------------------------------------------
+| Message Details
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/messages/{message}', [
+    WhatsAppController::class,
+    'show'
+])->name('messages.show');
+
+
 /*
 |--------------------------------------------------------------------------
 | Retry Failed Message
@@ -45,6 +60,43 @@ Route::post('/messages/{message}/retry', [
     WhatsAppController::class,
     'retry'
 ])->name('messages.retry');
+
+
+/*
+|--------------------------------------------------------------------------
+| Delete Message
+|--------------------------------------------------------------------------
+*/
+
+Route::delete('/messages/{message}', [
+    WhatsAppController::class,
+    'destroy'
+])->name('messages.destroy');
+
+
+/*
+|--------------------------------------------------------------------------
+| Bulk Delete Messages
+|--------------------------------------------------------------------------
+*/
+
+Route::delete('/messages-bulk-delete', [
+    WhatsAppController::class,
+    'bulkDestroy'
+])->name('messages.bulkDestroy');
+
+
+/*
+|--------------------------------------------------------------------------
+| CSV Export
+|--------------------------------------------------------------------------
+*/
+
+Route::get('/messages-export-csv', [
+    WhatsAppController::class,
+    'exportCsv'
+])->name('messages.export.csv');
+
 
 /*
 |--------------------------------------------------------------------------
@@ -82,6 +134,7 @@ Route::delete('/templates/{template}', [
     'templatesDestroy'
 ])->name('templates.destroy');
 
+
 /*
 |--------------------------------------------------------------------------
 | WhatsApp Webhook
@@ -93,6 +146,7 @@ Route::post('/webhook/whatsapp', [
     'webhook'
 ])->name('webhook.whatsapp');
 
+
 /*
 |--------------------------------------------------------------------------
 | Dashboard
@@ -103,6 +157,7 @@ Route::get('/dashboard', [
     WhatsAppController::class,
     'dashboard'
 ])->name('dashboard');
+
 
 /*
 |--------------------------------------------------------------------------
@@ -127,5 +182,6 @@ Route::middleware('auth')->group(function () {
         'destroy'
     ])->name('profile.destroy');
 });
+
 
 require __DIR__ . '/auth.php';

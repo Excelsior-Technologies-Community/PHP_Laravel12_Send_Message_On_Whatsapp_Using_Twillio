@@ -8,9 +8,12 @@ use App\Models\Message;
 use App\Models\Template;
 use App\Models\IncomingMessage;
 use Twilio\Rest\Client;
+use Carbon\Carbon;
+use Symfony\Component\HttpFoundation\StreamedResponse;
 
 class WhatsAppController extends Controller
 {
+
     /**
      * Number of hours during which a successfully sent
      * message to the same phone is considered a duplicate.
@@ -246,8 +249,8 @@ class WhatsAppController extends Controller
                 $duplicatePhones->push($phone);
 
                 $validPhones = $validPhones->reject(
-                    fn ($validPhone) =>
-                        $validPhone === $phone
+                    fn($validPhone) =>
+                    $validPhone === $phone
                 );
             }
 
@@ -348,7 +351,7 @@ class WhatsAppController extends Controller
                     $messageData['mediaUrl'] = [
                         asset(
                             'storage/' .
-                            ltrim($mediaPath, '/')
+                                ltrim($mediaPath, '/')
                         ),
                     ];
                 }
@@ -385,7 +388,6 @@ class WhatsAppController extends Controller
                     'phone' => $phone,
                     'status' => 'sent',
                 ];
-
             } catch (\Exception $e) {
 
                 /*
@@ -457,8 +459,8 @@ class WhatsAppController extends Controller
             $summary .=
                 " " .
                 $duplicatePhones
-                    ->unique()
-                    ->count() .
+                ->unique()
+                ->count() .
                 " duplicate number(s) skipped.";
         }
 
@@ -596,24 +598,127 @@ class WhatsAppController extends Controller
     /**
      * Display message history.
      */
-    public function history()
+    /**
+     * Display message history.
+     *
+     * Features:
+     * - Search by phone/message
+     * - Status filter
+     * - Date range filter
+     * - Dynamic pagination
+     */
+    public function history(Request $request)
     {
-        $messages = Message::with('user')
-            ->when(
-                auth()->user() &&
-                auth()->user()->role !== 'admin',
-                function ($query) {
-                    return $query->where(
-                        'user_id',
-                        auth()->id()
+        $validated = $request->validate([
+            'search' => 'nullable|string|max:255',
+            'status' => 'nullable|in:sent,failed',
+            'from_date' => 'nullable|date',
+            'to_date' => 'nullable|date|after_or_equal:from_date',
+            'per_page' => 'nullable|integer|in:5,10,20,50,100',
+        ]);
+
+        $perPage = (int) ($validated['per_page'] ?? 5);
+
+        $query = Message::with('user');
+
+        /*
+    |--------------------------------------------------------------------------
+    | Authorization
+    |--------------------------------------------------------------------------
+    */
+
+        if (
+            auth()->user() &&
+            auth()->user()->role !== 'admin'
+        ) {
+            $query->where(
+                'user_id',
+                auth()->id()
+            );
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | Search
+    |--------------------------------------------------------------------------
+    */
+
+        if (!empty($validated['search'])) {
+
+            $search = $validated['search'];
+
+            $query->where(function ($q) use ($search) {
+
+                $q->where(
+                    'phone',
+                    'like',
+                    '%' . $search . '%'
+                )
+                    ->orWhere(
+                        'message',
+                        'like',
+                        '%' . $search . '%'
                     );
-                }
-            )
+            });
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | Status Filter
+    |--------------------------------------------------------------------------
+    */
+
+        if (!empty($validated['status'])) {
+
+            $query->where(
+                'status',
+                $validated['status']
+            );
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | From Date
+    |--------------------------------------------------------------------------
+    */
+
+        if (!empty($validated['from_date'])) {
+
+            $query->whereDate(
+                'sent_at',
+                '>=',
+                $validated['from_date']
+            );
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | To Date
+    |--------------------------------------------------------------------------
+    */
+
+        if (!empty($validated['to_date'])) {
+
+            $query->whereDate(
+                'sent_at',
+                '<=',
+                $validated['to_date']
+            );
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | Pagination
+    |--------------------------------------------------------------------------
+    */
+
+        $messages = $query
             ->orderBy(
                 'sent_at',
                 'desc'
             )
-            ->paginate(20);
+            ->paginate($perPage)
+            ->withQueryString();
 
         return view(
             'messages.history',
@@ -714,10 +819,10 @@ class WhatsAppController extends Controller
                 $messageData['mediaUrl'] = [
                     asset(
                         'storage/' .
-                        ltrim(
-                            $message->media_path,
-                            '/'
-                        )
+                            ltrim(
+                                $message->media_path,
+                                '/'
+                            )
                     ),
                 ];
             }
@@ -751,7 +856,6 @@ class WhatsAppController extends Controller
                 'success',
                 "WhatsApp message to {$phone} was successfully retried."
             );
-
         } catch (\Exception $e) {
 
             /*
@@ -768,7 +872,7 @@ class WhatsAppController extends Controller
             return back()->with(
                 'error',
                 "Retry failed for {$phone}: " .
-                $e->getMessage()
+                    $e->getMessage()
             );
         }
     }
@@ -822,14 +926,13 @@ class WhatsAppController extends Controller
                         $request->input('variables')
                     )
                 )
-                    ->map(
-                        fn ($variable) =>
-                            trim($variable)
-                    )
-                    ->filter()
-                    ->values()
-                    ->toArray();
-
+                ->map(
+                    fn($variable) =>
+                    trim($variable)
+                )
+                ->filter()
+                ->values()
+                ->toArray();
         } else {
 
             $validated['variables'] = [];
@@ -887,14 +990,13 @@ class WhatsAppController extends Controller
                         $request->input('variables')
                     )
                 )
-                    ->map(
-                        fn ($variable) =>
-                            trim($variable)
-                    )
-                    ->filter()
-                    ->values()
-                    ->toArray();
-
+                ->map(
+                    fn($variable) =>
+                    trim($variable)
+                )
+                ->filter()
+                ->values()
+                ->toArray();
         } else {
 
             $validated['variables'] = [];
@@ -941,15 +1043,15 @@ class WhatsAppController extends Controller
 
         IncomingMessage::create([
             'from' =>
-                $data['entry'][0]['changes'][0]['value']['messages'][0]['from']
+            $data['entry'][0]['changes'][0]['value']['messages'][0]['from']
                 ?? 'unknown',
 
             'message' =>
-                $data['entry'][0]['changes'][0]['value']['messages'][0]['text']['body']
+            $data['entry'][0]['changes'][0]['value']['messages'][0]['text']['body']
                 ?? '',
 
             'message_type' =>
-                $data['entry'][0]['changes'][0]['value']['messages'][0]['type']
+            $data['entry'][0]['changes'][0]['value']['messages'][0]['type']
                 ?? 'text',
 
             'received_at' => now(),
@@ -1018,6 +1120,370 @@ class WhatsAppController extends Controller
                 'todaySent' => $todaySent,
                 'todayFailed' => $todayFailed,
                 'messagesByDay' => $messagesByDay,
+            ]
+        );
+    }
+
+
+    /**
+     * Display a single WhatsApp message.
+     */
+    public function show(Message $message)
+    {
+        /*
+    |--------------------------------------------------------------------------
+    | Authorization
+    |--------------------------------------------------------------------------
+    */
+
+        if (
+            auth()->user()->role !== 'admin' &&
+            $message->user_id !== auth()->id()
+        ) {
+            abort(
+                403,
+                'You are not authorized to view this message.'
+            );
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | Load related user
+    |--------------------------------------------------------------------------
+    */
+
+        $message->load('user');
+
+        return view(
+            'messages.show',
+            [
+                'message' => $message,
+            ]
+        );
+    }
+
+    /**
+     * Delete a single message.
+     */
+    public function destroy(Message $message)
+    {
+        /*
+    |--------------------------------------------------------------------------
+    | Authorization
+    |--------------------------------------------------------------------------
+    */
+
+        if (
+            auth()->user()->role !== 'admin' &&
+            $message->user_id !== auth()->id()
+        ) {
+            abort(
+                403,
+                'You are not authorized to delete this message.'
+            );
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | Delete attached media
+    |--------------------------------------------------------------------------
+    */
+
+        if ($message->media_path) {
+
+            Storage::disk('public')->delete(
+                $message->media_path
+            );
+        }
+
+        $message->delete();
+
+        return back()->with(
+            'success',
+            'Message deleted successfully.'
+        );
+    }
+
+    /**
+     * Delete multiple messages.
+     */
+    public function bulkDestroy(Request $request)
+    {
+        $validated = $request->validate([
+            'message_ids' => [
+                'required',
+                'array',
+                'min:1',
+            ],
+
+            'message_ids.*' => [
+                'integer',
+                'exists:messages,id',
+            ],
+        ]);
+
+        /*
+    |--------------------------------------------------------------------------
+    | Find selected messages
+    |--------------------------------------------------------------------------
+    */
+
+        $query = Message::whereIn(
+            'id',
+            $validated['message_ids']
+        );
+
+        /*
+    |--------------------------------------------------------------------------
+    | Authorization
+    |--------------------------------------------------------------------------
+    */
+
+        if (
+            auth()->user()->role !== 'admin'
+        ) {
+
+            $query->where(
+                'user_id',
+                auth()->id()
+            );
+        }
+
+        $messages = $query->get();
+
+        if ($messages->isEmpty()) {
+
+            return back()->with(
+                'error',
+                'No authorized messages were selected.'
+            );
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | Delete media
+    |--------------------------------------------------------------------------
+    */
+
+        foreach ($messages as $message) {
+
+            if ($message->media_path) {
+
+                Storage::disk('public')->delete(
+                    $message->media_path
+                );
+            }
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | Delete records
+    |--------------------------------------------------------------------------
+    */
+
+        $count = $messages->count();
+
+        foreach ($messages as $message) {
+            $message->delete();
+        }
+
+        return back()->with(
+            'success',
+            "{$count} message(s) deleted successfully."
+        );
+    }
+
+    /**
+     * Export message history to CSV.
+     *
+     * Current filters are preserved.
+     */
+    public function exportCsv(Request $request): StreamedResponse
+    {
+        $validated = $request->validate([
+            'search' => 'nullable|string|max:255',
+
+            'status' => [
+                'nullable',
+                'in:sent,failed',
+            ],
+
+            'from_date' => [
+                'nullable',
+                'date',
+            ],
+
+            'to_date' => [
+                'nullable',
+                'date',
+                'after_or_equal:from_date',
+            ],
+        ]);
+
+        $query = Message::with('user');
+
+        /*
+    |--------------------------------------------------------------------------
+    | Authorization
+    |--------------------------------------------------------------------------
+    */
+
+        if (
+            auth()->user()->role !== 'admin'
+        ) {
+
+            $query->where(
+                'user_id',
+                auth()->id()
+            );
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | Search
+    |--------------------------------------------------------------------------
+    */
+
+        if (!empty($validated['search'])) {
+
+            $search = $validated['search'];
+
+            $query->where(function ($q) use ($search) {
+
+                $q->where(
+                    'phone',
+                    'like',
+                    '%' . $search . '%'
+                )
+                    ->orWhere(
+                        'message',
+                        'like',
+                        '%' . $search . '%'
+                    );
+            });
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | Status
+    |--------------------------------------------------------------------------
+    */
+
+        if (!empty($validated['status'])) {
+
+            $query->where(
+                'status',
+                $validated['status']
+            );
+        }
+
+        /*
+    |--------------------------------------------------------------------------
+    | Date range
+    |--------------------------------------------------------------------------
+    */
+
+        if (!empty($validated['from_date'])) {
+
+            $query->whereDate(
+                'sent_at',
+                '>=',
+                $validated['from_date']
+            );
+        }
+
+        if (!empty($validated['to_date'])) {
+
+            $query->whereDate(
+                'sent_at',
+                '<=',
+                $validated['to_date']
+            );
+        }
+
+        $messages = $query
+            ->orderBy(
+                'sent_at',
+                'desc'
+            )
+            ->get();
+
+        $fileName =
+            'whatsapp-messages-' .
+            now()->format('Y-m-d-H-i-s') .
+            '.csv';
+
+        return response()->streamDownload(
+            function () use ($messages) {
+
+                $handle = fopen(
+                    'php://output',
+                    'w'
+                );
+
+                /*
+            |----------------------------------------------------------------------
+            | CSV Header
+            |----------------------------------------------------------------------
+            */
+
+                fputcsv(
+                    $handle,
+                    [
+                        'ID',
+                        'Date',
+                        'Phone',
+                        'Message',
+                        'Status',
+                        'Media',
+                        'User',
+                    ]
+                );
+
+                /*
+            |----------------------------------------------------------------------
+            | CSV Rows
+            |----------------------------------------------------------------------
+            */
+
+                foreach ($messages as $message) {
+
+                    fputcsv(
+                        $handle,
+                        [
+                            $message->id,
+
+                            $message->sent_at
+                                ? $message->sent_at->format(
+                                    'Y-m-d H:i:s'
+                                )
+                                : '',
+
+                            '+91 ' . $message->phone,
+
+                            $message->message,
+
+                            ucfirst(
+                                $message->status
+                            ),
+
+                            $message->media_path
+                                ? 'Yes'
+                                : 'No',
+
+                            $message->user
+                                ? $message->user->name
+                                : 'N/A',
+                        ]
+                    );
+                }
+
+                fclose($handle);
+            },
+            $fileName,
+            [
+                'Content-Type' =>
+                'text/csv; charset=UTF-8',
             ]
         );
     }
